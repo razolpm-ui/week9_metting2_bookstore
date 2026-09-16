@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bookstore - Inventory</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: white;
+            margin: 0;
+            padding: 25px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: auto;
+        }
+
+        h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        h2 {
+            font-size: 18px;
+            margin-top: 30px;
+            margin-bottom: 10px;
+        }
+
+        .form-container, .filter-container, .table-container {
+            border: 2px solid #333;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+
+        .form-row input, .form-row select {
+            padding: 6px;
+            font-size: 14px;
+            flex: 1;
+            min-width: 120px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 12px 10px;
+            text-align: left;
+            border-bottom: 1px solid #777;
+            font-size: 14px;
+        }
+
+        th {
+            font-weight: bold;
+        }
+
+        select {
+            width: 90px;
+            padding: 3px;
+            font-size: 13px;
+        }
+
+        button {
+            padding: 6px 14px;
+            background: white;
+            border: 1px solid #333;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #eee;
+        }
+
+        .cancel-btn {
+            width: 65px;
+            padding: 4px;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            padding: 10px;
+            display: none;
+        }
+
+        .success {
+            display: block;
+            background: #d4edda;
+        }
+
+        .error {
+            display: block;
+            background: #f8d7da;
+        }
+
+        .empty {
+            text-align: center;
+            padding: 30px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+
+        <h1>Bookstore — Inventory</h1>
+
+        <div id="message" class="message"></div>
+
+        <div class="form-container">
+            <h2>Add a Book</h2>
+            <div class="form-row">
+                <input type="text" id="title" placeholder="Title">
+                <input type="text" id="author" placeholder="Author">
+                <input type="text" id="genre" placeholder="Genre">
+                <input type="number" id="price" placeholder="Price" step="0.01">
+                <select id="inStock">
+                    <option value="1">In Stock</option>
+                    <option value="0">Out of Stock</option>
+                </select>
+                <button onclick="addBook()">Add</button>
+            </div>
+        </div>
+
+        <div class="filter-container">
+            <h2>Filter</h2>
+            <div class="form-row">
+                <input type="text" id="filterGenre" placeholder="Filter by genre">
+                <button onclick="filterByGenre()">Filter</button>
+                <input type="text" id="filterAuthor" placeholder="Filter by author">
+                <button onclick="filterByAuthor()">Filter</button>
+                <button onclick="loadBooks()">Clear Filter</button>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Author</th>
+                        <th>Genre</th>
+                        <th>Price</th>
+                        <th>Stock</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="bookTable">
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:3000';
+
+        async function loadBooks() {
+            try {
+                const response = await fetch(`${API_URL}/books`);
+                const books = await response.json();
+                renderBooks(books);
+            } catch (error) {
+                showMessage('Unable to connect to server.', 'error');
+            }
+        }
+
+        async function filterByGenre() {
+            const genre = document.getElementById('filterGenre').value.trim();
+            if (!genre) return;
+
+            try {
+                const response = await fetch(`${API_URL}/books?genre=${encodeURIComponent(genre)}`);
+                const books = await response.json();
+                renderBooks(books);
+            } catch (error) {
+                showMessage('Unable to connect to server.', 'error');
+            }
+        }
+
+        async function filterByAuthor() {
+            const author = document.getElementById('filterAuthor').value.trim();
+            if (!author) return;
+
+            try {
+                const response = await fetch(`${API_URL}/books?author=${encodeURIComponent(author)}`);
+                const books = await response.json();
+                renderBooks(books);
+            } catch (error) {
+                showMessage('Unable to connect to server.', 'error');
+            }
+        }
+
+        function renderBooks(books) {
+            const bookTable = document.getElementById('bookTable');
+            bookTable.innerHTML = '';
+
+            if (books.length === 0) {
+                bookTable.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="empty">
+                            No books found.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            books.forEach(book => {
+                const row = document.createElement('tr');
+
+                row.innerHTML = `
+                    <td>${book.title}</td>
+                    <td>${book.author}</td>
+                    <td>${book.genre}</td>
+                    <td>$${Number(book.price).toFixed(2)}</td>
+                    <td>
+                        <select onchange="updateStock(${book.id}, this.value)">
+                            <option value="1" ${book.inStock == 1 ? 'selected' : ''}>In Stock</option>
+                            <option value="0" ${book.inStock == 0 ? 'selected' : ''}>Out of Stock</option>
+                        </select>
+                    </td>
+                    <td>
+                        <button class="cancel-btn" onclick="deleteBook(${book.id})">Remove</button>
+                    </td>
+                `;
+
+                bookTable.appendChild(row);
+            });
+        }
+
+        async function addBook() {
+            const title = document.getElementById('title').value.trim();
+            const author = document.getElementById('author').value.trim();
+            const genre = document.getElementById('genre').value.trim();
+            const price = document.getElementById('price').value;
+            const inStock = document.getElementById('inStock').value;
+
+            if (!title || !author || !genre || !price) {
+                showMessage('Please fill out every field.', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/books`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title,
+                        author,
+                        genre,
+                        price: parseFloat(price),
+                        inStock: parseInt(inStock)
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    showMessage(data.error, 'error');
+                    return;
+                }
+
+                showMessage('Book added.', 'success');
+
+                document.getElementById('title').value = '';
+                document.getElementById('author').value = '';
+                document.getElementById('genre').value = '';
+                document.getElementById('price').value = '';
+
+                loadBooks();
+
+            } catch (error) {
+                showMessage('Unable to connect to server.', 'error');
+            }
+        }
+
+        async function updateStock(id, inStock) {
+            try {
+                const response = await fetch(`${API_URL}/books/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ inStock: parseInt(inStock) })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    showMessage(data.error, 'error');
+                    return;
+                }
+
+                showMessage('Stock status updated.', 'success');
+                loadBooks();
+
+            } catch (error) {
+                showMessage('Unable to connect to server.', 'error');
+            }
+        }
+
+        async function deleteBook(id) {
+            const confirmDelete = confirm('Remove this book from inventory?');
+            if (!confirmDelete) return;
+
+            try {
+                const response = await fetch(`${API_URL}/books/${id}`, {
+                    method: 'DELETE'
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    showMessage(data.error, 'error');
+                    return;
+                }
+
+                showMessage('Book removed.', 'success');
+                loadBooks();
+
+            } catch (error) {
+                showMessage('Unable to connect to server.', 'error');
+            }
+        }
+
+        function showMessage(text, type) {
+            const message = document.getElementById('message');
+            message.textContent = text;
+            message.className = `message ${type}`;
+
+            setTimeout(() => {
+                message.style.display = 'none';
+            }, 2000);
+
+            message.style.display = 'block';
+        }
+
+        loadBooks();
+    </script>
+
+</body>
+</html>
